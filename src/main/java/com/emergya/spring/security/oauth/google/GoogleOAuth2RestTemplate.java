@@ -1,13 +1,35 @@
 package com.emergya.spring.security.oauth.google;
 
+import java.util.Arrays;
+import org.springframework.security.oauth2.client.OAuth2ClientContext;
 import org.springframework.security.oauth2.client.OAuth2RestOperations;
+import org.springframework.security.oauth2.client.OAuth2RestTemplate;
+import org.springframework.security.oauth2.client.token.AccessTokenProvider;
+import org.springframework.security.oauth2.client.token.AccessTokenProviderChain;
+import org.springframework.security.oauth2.client.token.grant.client.ClientCredentialsAccessTokenProvider;
+import org.springframework.security.oauth2.client.token.grant.implicit.ImplicitAccessTokenProvider;
+import org.springframework.security.oauth2.client.token.grant.password.ResourceOwnerPasswordAccessTokenProvider;
 
 /**
- * Interface for the GoogleOAuth2RestTemplate so Spring is able to create an proxy, as we need the template to be a session bean as
- * it will contain info about the user (google's auth token, etc.).
+ * Extends OAuth2RestTemplate to change the access token provider chain to include <c>GoogleAuthorizationCodeAccessTokenProvider</c>
+ * insted of <c>AuthorizationCodeAccessTokenProvider</c> so we support some custom parameters that Google supports.
  *
  * @author lroman
  */
-public interface GoogleOAuth2RestTemplate extends OAuth2RestOperations {
+public class GoogleOAuth2RestTemplate extends OAuth2RestTemplate implements OAuth2RestOperations {
+
+    public GoogleOAuth2RestTemplate() {
+        super(null);
+    }
+
+    public GoogleOAuth2RestTemplate(GoogleAuthCodeResourceDetails resource, OAuth2ClientContext context) {
+        super(resource, context);
+
+        setAccessTokenProvider(
+                new AccessTokenProviderChain(Arrays.<AccessTokenProvider>asList(
+                                new GoogleAuthorizationCodeAccessTokenProvider(), new ImplicitAccessTokenProvider(),
+                                new ResourceOwnerPasswordAccessTokenProvider(), new ClientCredentialsAccessTokenProvider())));
+
+    }
 
 }
