@@ -62,6 +62,7 @@ import org.springframework.security.oauth2.common.exceptions.InvalidRequestExcep
 import org.springframework.security.oauth2.common.util.OAuth2Utils;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.ResponseExtractor;
 
 /**
@@ -120,7 +121,7 @@ public class GoogleAuthorizationCodeAccessTokenProvider extends OAuth2AccessToke
             throws UserRedirectRequiredException, UserApprovalRequiredException, AccessDeniedException,
             OAuth2AccessDeniedException {
 
-        AuthorizationCodeResourceDetails resource = (AuthorizationCodeResourceDetails) details;
+        GoogleAuthCodeResourceDetails resource = (GoogleAuthCodeResourceDetails) details;
 
         HttpHeaders headers = getHeadersForAuthorizationRequest(request);
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
@@ -272,7 +273,7 @@ public class GoogleAuthorizationCodeAccessTokenProvider extends OAuth2AccessToke
 
     }
 
-    private MultiValueMap<String, String> getParametersForAuthorizeRequest(AuthorizationCodeResourceDetails resource,
+    private MultiValueMap<String, String> getParametersForAuthorizeRequest(GoogleAuthCodeResourceDetails resource,
             AccessTokenRequest request) {
 
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
@@ -305,6 +306,12 @@ public class GoogleAuthorizationCodeAccessTokenProvider extends OAuth2AccessToke
                 throw new InvalidRequestException(
                         "Possible CSRF detected - state parameter was present but no state could be found");
             }
+        }
+
+        form.set("approval_prompt", resource.getApprovalPrompt());
+
+        if (StringUtils.isEmpty(resource.getLoginHint())) {
+            form.set("login_hint", resource.getLoginHint());
         }
 
         if (redirectUri != null) {
@@ -348,6 +355,11 @@ public class GoogleAuthorizationCodeAccessTokenProvider extends OAuth2AccessToke
         }
 
         requestParameters.put("approval_prompt", resource.getApprovalPrompt());
+
+        if (StringUtils.isEmpty(resource.getLoginHint())) {
+            requestParameters.put("login_hint", resource.getLoginHint());
+        }
+
         requestParameters.put("access_type", "online");
 
         UserRedirectRequiredException redirectException = new UserRedirectRequiredException(

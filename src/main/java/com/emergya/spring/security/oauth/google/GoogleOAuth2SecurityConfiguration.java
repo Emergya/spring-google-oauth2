@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Scope;
 import org.springframework.context.annotation.ScopedProxyMode;
 import org.springframework.security.oauth2.client.DefaultOAuth2ClientContext;
+import org.springframework.security.oauth2.client.OAuth2ClientContext;
 import org.springframework.security.oauth2.client.token.AccessTokenRequest;
 
 @Configuration
@@ -66,6 +67,7 @@ public class GoogleOAuth2SecurityConfiguration {
         details.setAuthenticationScheme(AuthenticationScheme.query);
         details.setClientAuthenticationScheme(AuthenticationScheme.form);
         details.setApprovalPrompt("force");
+
         return details;
     }
 
@@ -76,10 +78,15 @@ public class GoogleOAuth2SecurityConfiguration {
     }
 
     @Bean()
+    public GoogleOAuth2RestTemplate googleRestTemplate() {
+        return new GoogleOAuth2RestTemplate(googleResource(), getContext());
+    }
+
+    @Bean()
     @Scope(value = "session", proxyMode = ScopedProxyMode.INTERFACES)
     @Lazy
-    public GoogleOAuth2RestTemplate googleRestTemplate() {
-        return new GoogleOAuth2RestTemplateImpl(googleResource(), new DefaultOAuth2ClientContext(accessTokenRequest));
+    protected OAuth2ClientContext getContext() {
+        return new DefaultOAuth2ClientContext(accessTokenRequest);
     }
 
 }
