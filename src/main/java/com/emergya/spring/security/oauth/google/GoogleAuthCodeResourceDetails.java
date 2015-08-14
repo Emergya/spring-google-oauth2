@@ -14,7 +14,6 @@ import org.springframework.security.oauth2.client.token.grant.code.Authorization
  */
 public class GoogleAuthCodeResourceDetails extends AuthorizationCodeResourceDetails {
 
-    @Value("${google.approvalPrompt}")
     private String approvalPrompt;
 
     private String loginHint;
