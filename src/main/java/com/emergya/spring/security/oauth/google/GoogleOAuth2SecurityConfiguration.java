@@ -43,6 +43,9 @@ public class GoogleOAuth2SecurityConfiguration {
     @Value("${google.preestablished.redirect.url}")
     private String REDIRECT_URI;
 
+    @Value("${google.approvalPrompt}")
+    private String APPROVAL_PROMPT;
+
     @Resource
     @Qualifier("accessTokenRequest")
     private AccessTokenRequest accessTokenRequest;
@@ -66,7 +69,7 @@ public class GoogleOAuth2SecurityConfiguration {
         details.setUseCurrentUri(false);
         details.setAuthenticationScheme(AuthenticationScheme.query);
         details.setClientAuthenticationScheme(AuthenticationScheme.form);
-        details.setApprovalPrompt("force");
+        details.setApprovalPrompt(APPROVAL_PROMPT);
 
         return details;
     }
