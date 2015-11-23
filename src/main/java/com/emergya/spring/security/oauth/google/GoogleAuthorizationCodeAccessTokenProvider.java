@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/*
+ /*
  * Copyright 2002-2011 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,7 +37,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -82,46 +81,63 @@ public class GoogleAuthorizationCodeAccessTokenProvider extends OAuth2AccessToke
     private RequestEnhancer authorizationRequestEnhancer = new DefaultRequestEnhancer();
 
     /**
-     * A custom enhancer for the authorization request
+     * A custom enhancer for the authorization request.
      *
-     * @param authorizationRequestEnhancer
+     * @param authorizationRequestEnhancer the authorization request enhancer to set.
      */
-    public void setAuthorizationRequestEnhancer(RequestEnhancer authorizationRequestEnhancer) {
+    public final void setAuthorizationRequestEnhancer(final RequestEnhancer authorizationRequestEnhancer) {
         this.authorizationRequestEnhancer = authorizationRequestEnhancer;
     }
 
     /**
      * Prefix for scope approval parameters.
      *
-     * @param scopePrefix
+     * @param scopePrefix the scope prefix to set.
      */
-    public void setScopePrefix(String scopePrefix) {
+    public final void setScopePrefix(final String scopePrefix) {
         this.scopePrefix = scopePrefix;
     }
 
     /**
      * @param stateKeyGenerator the stateKeyGenerator to set
      */
-    public void setStateKeyGenerator(StateKeyGenerator stateKeyGenerator) {
+    public final void setStateKeyGenerator(final StateKeyGenerator stateKeyGenerator) {
         this.stateKeyGenerator = stateKeyGenerator;
     }
 
     @Override
-    public boolean supportsResource(OAuth2ProtectedResourceDetails resource) {
+    public final boolean supportsResource(final OAuth2ProtectedResourceDetails resource) {
         return resource instanceof AuthorizationCodeResourceDetails
                 && "authorization_code".equals(resource.getGrantType());
     }
 
     @Override
-    public boolean supportsRefresh(OAuth2ProtectedResourceDetails resource) {
+    public final boolean supportsRefresh(final OAuth2ProtectedResourceDetails resource) {
         return supportsResource(resource);
     }
 
-    public String obtainAuthorizationCode(OAuth2ProtectedResourceDetails details, AccessTokenRequest request)
+    /**
+     * Obtains the authorization code from the access token request.
+     *
+     * @param details the authenticatoin details
+     * @param request the access token request
+     * @return the authorization code
+     * @throws UserRedirectRequiredException when redirection is required
+     * @throws UserApprovalRequiredException when the user requires approval
+     * @throws AccessDeniedException when the user is denied access
+     * @throws OAuth2AccessDeniedException when the user is denied access but we dont want the default Spring Security handling
+     */
+    public final String obtainAuthorizationCode(final OAuth2ProtectedResourceDetails details, final AccessTokenRequest request)
             throws UserRedirectRequiredException, UserApprovalRequiredException, AccessDeniedException,
             OAuth2AccessDeniedException {
 
-        GoogleAuthCodeResourceDetails resource = (GoogleAuthCodeResourceDetails) details;
+        GoogleAuthCodeResourceDetails resource;
+
+        try {
+            resource = (GoogleAuthCodeResourceDetails) details;
+        } catch (ClassCastException ex) {
+            throw new IllegalArgumentException("details is not an instance of class GoogleAuthCodeResourceDetails");
+        }
 
         HttpHeaders headers = getHeadersForAuthorizationRequest(request);
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
@@ -137,15 +153,7 @@ public class GoogleAuthorizationCodeAccessTokenProvider extends OAuth2AccessToke
         final AccessTokenRequest copy = request;
 
         final ResponseExtractor<ResponseEntity<Void>> delegate = getAuthorizationResponseExtractor();
-        ResponseExtractor<ResponseEntity<Void>> extractor = new ResponseExtractor<ResponseEntity<Void>>() {
-            @Override
-            public ResponseEntity<Void> extractData(ClientHttpResponse response) throws IOException {
-                if (response.getHeaders().containsKey("Set-Cookie")) {
-                    copy.setCookie(response.getHeaders().getFirst("Set-Cookie"));
-                }
-                return delegate.extractData(response);
-            }
-        };
+        ResponseExtractor<ResponseEntity<Void>> extractor = new CookieResponseExtractor(copy, delegate);
         // Instead of using restTemplate.exchange we use an explicit response extractor here so it can be overridden by
         // subclasses
         ResponseEntity<Void> response = getRestTemplate().execute(resource.getUserAuthorizationUri(), HttpMethod.POST,
@@ -180,21 +188,27 @@ public class GoogleAuthorizationCodeAccessTokenProvider extends OAuth2AccessToke
 
     }
 
-    protected ResponseExtractor<ResponseEntity<Void>> getAuthorizationResponseExtractor() {
-        return new ResponseExtractor<ResponseEntity<Void>>() {
-            @Override
-            public ResponseEntity<Void> extractData(ClientHttpResponse response) throws IOException {
-                return new ResponseEntity<>(response.getHeaders(), response.getStatusCode());
-            }
-        };
+    /**
+     * Gets the authorization response extractor object.
+     *
+     * @return the authorizatoin response extractor.
+     */
+    protected final ResponseExtractor<ResponseEntity<Void>> getAuthorizationResponseExtractor() {
+        return new AuthResponseExtractor();
     }
 
     @Override
-    public OAuth2AccessToken obtainAccessToken(OAuth2ProtectedResourceDetails details, AccessTokenRequest request)
+    public final OAuth2AccessToken obtainAccessToken(final OAuth2ProtectedResourceDetails details, final AccessTokenRequest request)
             throws UserRedirectRequiredException, UserApprovalRequiredException, AccessDeniedException,
             OAuth2AccessDeniedException {
 
-        GoogleAuthCodeResourceDetails resource = (GoogleAuthCodeResourceDetails) details;
+        GoogleAuthCodeResourceDetails resource;
+
+        try {
+            resource = (GoogleAuthCodeResourceDetails) details;
+        } catch (ClassCastException ex) {
+            throw new IllegalArgumentException("details is not an instance of class GoogleAuthCodeResourceDetails");
+        }
 
         if (request.getAuthorizationCode() == null) {
             if (request.getStateKey() == null) {
@@ -202,32 +216,35 @@ public class GoogleAuthorizationCodeAccessTokenProvider extends OAuth2AccessToke
             }
             obtainAuthorizationCode(resource, request);
         }
-        return retrieveToken(request, resource, getParametersForTokenRequest(resource, request),
-                getHeadersForTokenRequest(request));
+        return retrieveToken(request, resource, getParametersForTokenRequest(resource, request), getHeadersForTokenRequest());
 
     }
 
     @Override
-    public OAuth2AccessToken refreshAccessToken(OAuth2ProtectedResourceDetails resource,
-            OAuth2RefreshToken refreshToken, AccessTokenRequest request) throws UserRedirectRequiredException,
-            OAuth2AccessDeniedException {
+    public final OAuth2AccessToken refreshAccessToken(
+            final OAuth2ProtectedResourceDetails resource, final OAuth2RefreshToken refreshToken, final AccessTokenRequest request)
+            throws UserRedirectRequiredException, OAuth2AccessDeniedException {
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "refresh_token");
         form.add("refresh_token", refreshToken.getValue());
         try {
-            return retrieveToken(request, resource, form, getHeadersForTokenRequest(request));
+            return retrieveToken(request, resource, form, getHeadersForTokenRequest());
         } catch (OAuth2AccessDeniedException e) {
-            throw getRedirectForAuthorization((GoogleAuthCodeResourceDetails) resource, request);
+            try {
+                throw getRedirectForAuthorization((GoogleAuthCodeResourceDetails) resource, request);
+            } catch (ClassCastException ex) {
+                throw new IllegalArgumentException("details is not an instance of class GoogleAuthCodeResourceDetails");
+            }
         }
     }
 
-    private HttpHeaders getHeadersForTokenRequest(AccessTokenRequest request) {
+    private HttpHeaders getHeadersForTokenRequest() {
         HttpHeaders headers = new HttpHeaders();
         // No cookie for token request
         return headers;
     }
 
-    private HttpHeaders getHeadersForAuthorizationRequest(AccessTokenRequest request) {
+    private HttpHeaders getHeadersForAuthorizationRequest(final AccessTokenRequest request) {
         HttpHeaders headers = new HttpHeaders();
         headers.putAll(request.getHeaders());
         if (request.getCookie() != null) {
@@ -236,8 +253,8 @@ public class GoogleAuthorizationCodeAccessTokenProvider extends OAuth2AccessToke
         return headers;
     }
 
-    private MultiValueMap<String, String> getParametersForTokenRequest(AuthorizationCodeResourceDetails resource,
-            AccessTokenRequest request) {
+    private MultiValueMap<String, String> getParametersForTokenRequest(
+            final AuthorizationCodeResourceDetails resource, final AccessTokenRequest request) {
 
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.set("grant_type", "authorization_code");
@@ -255,7 +272,7 @@ public class GoogleAuthorizationCodeAccessTokenProvider extends OAuth2AccessToke
 
         // Extracting the redirect URI from a saved request should ignore the current URI, so it's not simply a call to
         // resource.getRedirectUri()
-        String redirectUri = null;
+        String redirectUri;
         // Get the redirect uri from the stored state
         if (preservedState instanceof String) {
             // Use the preserved state in preference if it is there
@@ -375,12 +392,49 @@ public class GoogleAuthorizationCodeAccessTokenProvider extends OAuth2AccessToke
 
     }
 
-    protected UserApprovalRequiredException getUserApprovalSignal(AuthorizationCodeResourceDetails resource,
+    /**
+     * Gets the content for the UserApprovalRequire exeption.
+     *
+     * @param resource the resource details objet
+     * @param request the access toke request
+     * @return the exception to be thrown
+     */
+    protected final UserApprovalRequiredException getUserApprovalSignal(AuthorizationCodeResourceDetails resource,
             AccessTokenRequest request) {
         String message = String.format("Do you approve the client '%s' to access your resources with scope=%s",
                 resource.getClientId(), resource.getScope());
         return new UserApprovalRequiredException(resource.getUserAuthorizationUri(), Collections.singletonMap(
                 OAuth2Utils.USER_OAUTH_APPROVAL, message), resource.getClientId(), resource.getScope());
+    }
+
+    private static class CookieResponseExtractor implements ResponseExtractor<ResponseEntity<Void>> {
+
+        private final AccessTokenRequest copy;
+        private final ResponseExtractor<ResponseEntity<Void>> delegate;
+
+        CookieResponseExtractor(AccessTokenRequest copy, ResponseExtractor<ResponseEntity<Void>> delegate) {
+            this.copy = copy;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public ResponseEntity<Void> extractData(ClientHttpResponse response) throws IOException {
+            if (response.getHeaders().containsKey("Set-Cookie")) {
+                copy.setCookie(response.getHeaders().getFirst("Set-Cookie"));
+            }
+            return delegate.extractData(response);
+        }
+    }
+
+    private static class AuthResponseExtractor implements ResponseExtractor<ResponseEntity<Void>> {
+
+        AuthResponseExtractor() {
+        }
+
+        @Override
+        public ResponseEntity<Void> extractData(ClientHttpResponse response) throws IOException {
+            return new ResponseEntity<>(response.getHeaders(), response.getStatusCode());
+        }
     }
 
 }

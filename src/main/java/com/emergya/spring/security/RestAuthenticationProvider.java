@@ -1,7 +1,6 @@
 package com.emergya.spring.security;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -15,24 +14,31 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 
 /**
- * Authentication Provider uses two params: 1.- timestamp 2.- pass (combination of md5{timestamp + predefined token})
+ * Authentication Provider uses two params: 1.- timestamp 2.- pass (combination of md5{timestamp + predefined token}).
  *
  * @author ajrodriguez
  *
  */
 @Component
-public class RestAuthenticationProvider extends AbstractUserDetailsAuthenticationProvider implements AuthenticationProvider {
+public class RestAuthenticationProvider extends AbstractUserDetailsAuthenticationProvider {
 
     private UserDetailsService userDetailsService;
 
+    /**
+     * Sets the user details service.
+     *
+     * @param userDetailsService the user details service to set
+     */
     @Autowired
-    public void setUserDetailsService(UserDetailsService userDetailsService) {
+    public final void setUserDetailsService(UserDetailsService userDetailsService) {
         this.userDetailsService = userDetailsService;
     }
 
     @Override
-    public Authentication authenticate(Authentication authentication) {
-        Assert.isInstanceOf(UsernamePasswordAuthenticationToken.class, authentication, "Only UsernamePasswordAuthenticationToken is supported");
+    public final Authentication authenticate(Authentication authentication) {
+        Assert.isInstanceOf(
+                UsernamePasswordAuthenticationToken.class,
+                authentication, "Only UsernamePasswordAuthenticationToken is supported");
 
         // Determine username
         String username = authentication.getName();
@@ -40,7 +46,7 @@ public class RestAuthenticationProvider extends AbstractUserDetailsAuthenticatio
 
         try {
             user = retrieveUser(username, (UsernamePasswordAuthenticationToken) authentication);
-        } catch (UsernameNotFoundException notFound) {
+        } catch (ClassCastException | UsernameNotFoundException ex) {
             throw new BadCredentialsException("Bad credentials");
         }
 
@@ -50,10 +56,12 @@ public class RestAuthenticationProvider extends AbstractUserDetailsAuthenticatio
     }
 
     @Override
-    protected UserDetails retrieveUser(final String username, final UsernamePasswordAuthenticationToken authentication) {
+    protected final UserDetails retrieveUser(final String username, final UsernamePasswordAuthenticationToken authentication) {
         UserDetails loadedUser;
 
-        String presentedPassword = authentication.getCredentials().toString();
+        if (userDetailsService == null) {
+            throw new IllegalStateException("userDetailsService must be set before using this!");
+        }
 
         loadedUser = userDetailsService.loadUserByUsername(username);
 
@@ -65,7 +73,8 @@ public class RestAuthenticationProvider extends AbstractUserDetailsAuthenticatio
     }
 
     @Override
-    protected void additionalAuthenticationChecks(UserDetails arg0, UsernamePasswordAuthenticationToken arg1) throws AuthenticationException {
+    protected void additionalAuthenticationChecks(final UserDetails arg0, final UsernamePasswordAuthenticationToken arg1)
+            throws AuthenticationException {
 
     }
 }
