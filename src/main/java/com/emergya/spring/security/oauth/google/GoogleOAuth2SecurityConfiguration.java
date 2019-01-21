@@ -1,57 +1,56 @@
 package com.emergya.spring.security.oauth.google;
 
 import java.util.ArrayList;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.security.oauth2.common.AuthenticationScheme;
-import org.springframework.security.oauth2.config.annotation.web.configuration.EnableOAuth2Client;
-
 import java.util.Collections;
 import java.util.List;
 import javax.annotation.Resource;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Scope;
 import org.springframework.context.annotation.ScopedProxyMode;
 import org.springframework.security.oauth2.client.DefaultOAuth2ClientContext;
 import org.springframework.security.oauth2.client.OAuth2ClientContext;
 import org.springframework.security.oauth2.client.token.AccessTokenRequest;
+import org.springframework.security.oauth2.common.AuthenticationScheme;
+import org.springframework.security.oauth2.config.annotation.web.configuration.EnableOAuth2Client;
 
 @Configuration
 @EnableOAuth2Client
 public class GoogleOAuth2SecurityConfiguration {
 
     @Value("${google.client.id}")
-    private String CLIENT_ID;
+    private String clientId;
 
     @Value("${google.client.secret}")
-    private String CLIENT_SECRET;
+    private String clientSecret;
 
     @Value("${google.accessTokenUri}")
-    private String ACCESS_TOKEN_URI;
+    private String accessTokenUri;
 
     @Value("${google.userAuthorizationUri}")
-    private String USER_AUTH_URI;
+    private String userAuthUri;
 
     @Value("${google.authorization.code}")
-    private String AUTH_NAME;
+    private String authName;
 
     @Value("${google.auth.scope}")
-    private String AUTH_SCOPES;
+    private String authScopes;
 
     @Value("${google.preestablished.redirect.url}")
-    private String REDIRECT_URI;
+    private String redirectUri;
 
     @Value("${google.approvalPrompt}")
-    private String APPROVAL_PROMPT;
+    private String approvalPrompt;
 
     @Resource
     @Qualifier("accessTokenRequest")
     private AccessTokenRequest accessTokenRequest;
 
     /**
-     * Establishes Google API Credentials properties for OAuth Filters
+     * Establishes Google API Credentials properties for OAuth Filters.
      *
      * @return Google API Credentials
      */
@@ -59,17 +58,17 @@ public class GoogleOAuth2SecurityConfiguration {
     public GoogleAuthCodeResourceDetails googleResource() {
         GoogleAuthCodeResourceDetails details = new GoogleAuthCodeResourceDetails();
         details.setId("google-oauth-client");
-        details.setClientId(CLIENT_ID);
-        details.setClientSecret(CLIENT_SECRET);
-        details.setAccessTokenUri(ACCESS_TOKEN_URI);
-        details.setUserAuthorizationUri(USER_AUTH_URI);
-        details.setTokenName(AUTH_NAME);
-        details.setScope(parseScopes(AUTH_SCOPES));
-        details.setPreEstablishedRedirectUri(REDIRECT_URI);
+        details.setClientId(clientId);
+        details.setClientSecret(clientSecret);
+        details.setAccessTokenUri(accessTokenUri);
+        details.setUserAuthorizationUri(userAuthUri);
+        details.setTokenName(authName);
+        details.setScope(parseScopes(authScopes));
+        details.setPreEstablishedRedirectUri(redirectUri);
         details.setUseCurrentUri(false);
         details.setAuthenticationScheme(AuthenticationScheme.query);
         details.setClientAuthenticationScheme(AuthenticationScheme.form);
-        details.setApprovalPrompt(APPROVAL_PROMPT);
+        details.setApprovalPrompt(approvalPrompt);
 
         return details;
     }
@@ -80,11 +79,21 @@ public class GoogleOAuth2SecurityConfiguration {
         return scopes;
     }
 
+    /**
+     * Returns the google rest template used for requests against Google OAuth service.
+     *
+     * @return the rest template instance
+     */
     @Bean()
     public GoogleOAuth2RestTemplate googleRestTemplate() {
         return new GoogleOAuth2RestTemplate(googleResource(), getContext());
     }
 
+    /**
+     * Returns the session's OAuth client context so authorization details can be injected in the user's session.
+     *
+     * @return the client context for the session
+     */
     @Bean()
     @Scope(value = "session", proxyMode = ScopedProxyMode.INTERFACES)
     @Lazy

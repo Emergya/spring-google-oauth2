@@ -1,9 +1,17 @@
 package com.emergya.spring.security.oauth.google;
 
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.security.core.AuthenticationException;
@@ -12,6 +20,7 @@ import org.springframework.security.oauth2.common.exceptions.InvalidTokenExcepti
 import org.springframework.security.oauth2.provider.OAuth2Authentication;
 import org.springframework.security.oauth2.provider.token.AccessTokenConverter;
 import org.springframework.security.oauth2.provider.token.RemoteTokenServices;
+import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -19,17 +28,8 @@ import org.springframework.web.client.DefaultResponseErrorHandler;
 import org.springframework.web.client.RestOperations;
 import org.springframework.web.client.RestTemplate;
 
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
-
 /**
- * Copied from Spring Security OAuth2 to support the custom format for a Google Token which is different from what Spring supports
+ * Copied from Spring Security OAuth2 to support the custom format for a Google Token which is different from what Spring supports.
  */
 @Component
 public class GoogleTokenServices extends RemoteTokenServices {
@@ -50,46 +50,43 @@ public class GoogleTokenServices extends RemoteTokenServices {
     @Autowired
     private AccessTokenConverter tokenConverter;
 
+    /**
+     * Constructor.
+     */
     public GoogleTokenServices() {
         restTemplate = new RestTemplate();
-        ((RestTemplate) restTemplate).setErrorHandler(new DefaultResponseErrorHandler() {
-            @Override
-            // Ignore 400
-            public void handleError(ClientHttpResponse response) throws IOException {
-                if (response.getRawStatusCode() != 400) {
-                    super.handleError(response);
-                }
-            }
-        });
+        ((RestTemplate) restTemplate).setErrorHandler(new ResponseErrorHandler());
     }
 
     @Override
-    public void setRestTemplate(RestOperations restTemplate) {
+    public final void setRestTemplate(RestOperations restTemplate) {
         this.restTemplate = restTemplate;
     }
 
     @Override
-    public void setCheckTokenEndpointUrl(String checkTokenEndpointUrl) {
+    public final void setCheckTokenEndpointUrl(String checkTokenEndpointUrl) {
         this.checkTokenEndpointUrl = checkTokenEndpointUrl;
     }
 
     @Override
-    public void setClientId(String clientId) {
+    public final void setClientId(String clientId) {
         this.clientId = clientId;
     }
 
     @Override
-    public void setClientSecret(String clientSecret) {
+    public final void setClientSecret(String clientSecret) {
         this.clientSecret = clientSecret;
     }
 
     @Override
-    public void setAccessTokenConverter(AccessTokenConverter accessTokenConverter) {
+    public final void setAccessTokenConverter(AccessTokenConverter accessTokenConverter) {
         this.tokenConverter = accessTokenConverter;
     }
 
     @Override
-    public OAuth2Authentication loadAuthentication(String accessToken) throws AuthenticationException, InvalidTokenException {
+    public final OAuth2Authentication loadAuthentication(String accessToken)
+            throws AuthenticationException, InvalidTokenException {
+
         Map<String, Object> checkTokenResponse = checkToken(accessToken);
 
         if (checkTokenResponse.containsKey("error")) {
@@ -107,7 +104,7 @@ public class GoogleTokenServices extends RemoteTokenServices {
         MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("token", accessToken);
         HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", getAuthorizationHeader(clientId, clientSecret));
+        headers.set("Authorization", getAuthorizationHeader());
         String accessTokenUrl = new StringBuilder(checkTokenEndpointUrl).append("?access_token=").append(accessToken).toString();
         return postForMap(accessTokenUrl, formData, headers);
     }
@@ -119,10 +116,10 @@ public class GoogleTokenServices extends RemoteTokenServices {
         LOGGER.log(Level.FINE, "Transformed = " + map);
     }
 
-    private String getAuthorizationHeader(String clientId, String clientSecret) {
+    private String getAuthorizationHeader() {
         String creds = String.format("%s:%s", clientId, clientSecret);
         try {
-            return "Basic " + new String(Base64.encode(creds.getBytes("UTF-8")));
+            return "Basic " + new String(Base64.encode(creds.getBytes("UTF-8")), "UTF-8");
         } catch (UnsupportedEncodingException e) {
             throw new IllegalStateException("Could not convert String");
         }
@@ -132,8 +129,27 @@ public class GoogleTokenServices extends RemoteTokenServices {
         if (headers.getContentType() == null) {
             headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
         }
-        ParameterizedTypeReference<Map<String, Object>> map = new ParameterizedTypeReference<Map<String, Object>>() {
-        };
+        ParameterizedTypeReference<Map<String, Object>> map = new ParameterizedTypeReferenceImpl();
         return restTemplate.exchange(path, HttpMethod.POST, new HttpEntity<>(formData, headers), map).getBody();
+    }
+
+    private static class ResponseErrorHandler extends DefaultResponseErrorHandler {
+
+        ResponseErrorHandler() {
+        }
+
+        @Override
+        // Ignore 400
+        public void handleError(ClientHttpResponse response) throws IOException {
+            if (response.getRawStatusCode() != HttpStatus.BAD_REQUEST.value()) {
+                super.handleError(response);
+            }
+        }
+    }
+
+    private static class ParameterizedTypeReferenceImpl extends ParameterizedTypeReference<Map<String, Object>> {
+
+        ParameterizedTypeReferenceImpl() {
+        }
     }
 }
