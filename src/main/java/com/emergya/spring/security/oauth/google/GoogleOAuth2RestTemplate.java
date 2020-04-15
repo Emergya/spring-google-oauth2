@@ -2,7 +2,6 @@ package com.emergya.spring.security.oauth.google;
 
 import java.util.Arrays;
 import org.springframework.security.oauth2.client.OAuth2ClientContext;
-import org.springframework.security.oauth2.client.OAuth2RestOperations;
 import org.springframework.security.oauth2.client.OAuth2RestTemplate;
 import org.springframework.security.oauth2.client.token.AccessTokenProvider;
 import org.springframework.security.oauth2.client.token.AccessTokenProviderChain;
@@ -16,19 +15,28 @@ import org.springframework.security.oauth2.client.token.grant.password.ResourceO
  *
  * @author lroman
  */
-public class GoogleOAuth2RestTemplate extends OAuth2RestTemplate implements OAuth2RestOperations {
+public class GoogleOAuth2RestTemplate extends OAuth2RestTemplate {
 
+    /**
+     * Default constructor.
+     */
     public GoogleOAuth2RestTemplate() {
         super(null);
     }
 
+    /**
+     * Constructor receiving the resource details and context to use in the requests.
+     *
+     * @param resource the resource details
+     * @param context the client context
+     */
     public GoogleOAuth2RestTemplate(GoogleAuthCodeResourceDetails resource, OAuth2ClientContext context) {
         super(resource, context);
 
         setAccessTokenProvider(
                 new AccessTokenProviderChain(Arrays.<AccessTokenProvider>asList(
-                                new GoogleAuthorizationCodeAccessTokenProvider(), new ImplicitAccessTokenProvider(),
-                                new ResourceOwnerPasswordAccessTokenProvider(), new ClientCredentialsAccessTokenProvider())));
+                        new GoogleAuthorizationCodeAccessTokenProvider(), new ImplicitAccessTokenProvider(),
+                        new ResourceOwnerPasswordAccessTokenProvider(), new ClientCredentialsAccessTokenProvider())));
 
     }
 
